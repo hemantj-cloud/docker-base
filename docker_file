@@ -1,0 +1,99 @@
+# Multi-stage build for NitroStack production Docker image
+# This Dockerfile is designed to work with any NitroStack project
+
+# Stage 1: Build stage
+FROM hemantwekan/node-base:20-alpine AS builder
+
+# Switch to root user for installing dependencies
+USER root
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including devDependencies for build)
+# Using BuildKit cache to speed up installs
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --no-audit --no-fund --prefer-offline
+
+# Copy source code (this includes widgets if they exist)
+COPY . .
+
+# Install widget dependencies if package.json exists
+RUN --mount=type=cache,target=/root/.npm \
+    if [ -f "src/widgets/package.json" ]; then \
+      npm ci --prefix src/widgets --no-audit --no-fund --prefer-offline; \
+    fi
+
+# Build the project (this builds TypeScript to dist/ and widgets to src/widgets/out/)
+RUN npm run build
+
+# Stage 2: Production stage
+FROM hemantwekan/node-base:20-alpine AS production
+
+# Base image already includes:
+# - procps (for pgrep)
+# - non-root user (nodejs)
+# - NODE_ENV=production
+# So we skip re-installing and re-creating them
+
+# Set working directory
+WORKDIR /app
+
+# Switch to root user for installing dependencies (fix for EACCES issue)
+USER root
+
+# Copy package files
+COPY package*.json ./
+
+# Install only production dependencies
+# Using modern flag + cache mount for speed
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev --omit=optional --no-audit --no-fund --prefer-offline && \
+    npm prune --omit=dev && \
+    npm cache clean --force
+
+# Remove unnecessary files from node_modules to reduce size
+RUN find node_modules -type f -name "*.md" -delete && \
+    find node_modules -type f -name "*.ts" -delete && \
+    find node_modules -type f -name "*.map" -delete
+
+# Copy built files from builder stage
+COPY --from=builder /app/dist ./dist
+
+# Copy widget files if they exist (using a script to handle optional files)
+# First, copy everything from widgets directory, then we'll clean up if needed
+RUN --mount=from=builder,source=/app/src,target=/tmp/src \
+    mkdir -p ./src/widgets && \
+    if [ -d "/tmp/src/widgets" ]; then \
+      if [ -d "/tmp/src/widgets/out" ]; then \
+        cp -r /tmp/src/widgets/out ./src/widgets/out; \
+      fi && \
+      if [ -f "/tmp/src/widgets/package.json" ]; then \
+        cp /tmp/src/widgets/package.json ./src/widgets/package.json; \
+      fi && \
+      if [ -f "/tmp/src/widgets/widget-manifest.json" ]; then \
+        cp /tmp/src/widgets/widget-manifest.json ./src/widgets/widget-manifest.json; \
+      fi; \
+    fi
+
+# Switch back to non-root user for security
+USER nodejs
+
+# We DO NOT recreate user/group or chown because base image already handles:
+# - nodejs user creation
+# - correct permissions
+# - default USER nodejs
+
+# Expose port (NitroStack uses port 3000 in production)
+EXPOSE 3000
+
+# Health check - simple process check since NitroStack uses STDIO in production
+# The server process should be running
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD pgrep -f "node.*dist/index.js" || exit 1
+
+# Start the production server (runs from dist folder)
+CMD ["npm", "run", "start:prod"]
