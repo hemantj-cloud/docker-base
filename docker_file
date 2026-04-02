@@ -2,13 +2,16 @@
 # This Dockerfile is designed to work with any NitroStack project
 
 # Stage 1: Build stage
-FROM hemantwekan/node-base:20-alpine AS builder
+FROM hemantwekan/node-base:20-alpine-v3 AS builder
 
 # Switch to root user for installing dependencies
 USER root
 
 # Set working directory
 WORKDIR /app
+
+# CHANGED: NitroStack CLI is already available from base image
+# RUN npm install -g @nitrostack/cli  ❌ removed (handled in base)
 
 # Copy package files
 COPY package*.json ./
@@ -31,12 +34,13 @@ RUN --mount=type=cache,target=/root/.npm \
 RUN npm run build
 
 # Stage 2: Production stage
-FROM hemantwekan/node-base:20-alpine AS production
+FROM hemantwekan/node-base:20-alpine-v3 AS production
 
 # Base image already includes:
 # - procps (for pgrep)
 # - non-root user (nodejs)
 # - NODE_ENV=production
+# - NitroStack CLI (CHANGED)
 # So we skip re-installing and re-creating them
 
 # Set working directory

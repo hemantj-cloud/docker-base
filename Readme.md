@@ -1,7 +1,11 @@
 ## ✅ What I did:
 
 - Created a **base Docker image (`Dockerfile.base`)** with Node 20 Alpine and a non-root user for security  
-- Built and pushed it as `hemantwekan/node-base:20-alpine` for reuse across services  
+- Installed **`@nitrostack/cli` globally in base image** to reuse across all projects and reduce build time  
+- Optimized base image by:
+  - Combining layers (apk + npm install)
+  - Cleaning npm cache
+  - Disabling audit/fund checks  
 - Used this base image in the main **multi-stage Dockerfile** (builder + production stages)  
 - Kept **npm install and build steps in the main Dockerfile** to handle project-specific dependencies  
 - Optimized builds using **Docker cache (`--mount=type=cache`)** for faster npm installs  
@@ -35,20 +39,42 @@
 
 ---
 
-## 🚀 Impact:
-
-- Reduced ~**100MB+ disk usage** compared to initial build (~25% improvement)  
-- Slight increase (~4MB) when switching from custom base → official node alpine  
-- Maintained overall optimized image size with cleaner and portable setup  
+### 🔹 Using Base Image with CLI (v2 - initial approach)
+- `hemantwekan/fresh-pizza:1.6.0`
+  - **Disk Usage:** 401MB  
+  - **Content Size:** 88.3MB  
 
 ---
 
-## ⚠️ Key decision:
+### 🔹 Using Optimized Base Image (v3 - improved)
+- `hemantwekan/node-base:20-alpine-v3`
+- `hemantwekan/fresh-pizza:1.7.0`
+  - **Disk Usage:** 355MB  
+  - **Content Size:** 77MB  
 
-- Did **not move npm install to base image** because dependencies are project-specific and it would break caching and flexibility  
+---
+
+## 🚀 Impact:
+
+- Reduced ~**100MB+ disk usage** compared to initial build (~25% improvement)  
+- Initial CLI integration increased size, but further optimizations reduced ~**46MB** from that spike  
+- Improved **build time** by installing `@nitrostack/cli` once in base image instead of every build  
+- Achieved a **balanced tradeoff** between:
+  - build performance ⚡  
+  - image size 📦  
+- Maintained overall optimized and reusable Docker architecture  
+
+---
+
+## ⚠️ Key decisions:
+
+- Moved **`@nitrostack/cli` to base image** since it is required in both build and runtime  
+- Optimized base image to reduce its impact on final image size  
+- Kept project-specific dependencies in main Dockerfile to maintain flexibility and proper caching   
 
 ---
 
 ## 🧠 Note on base updates:
 
 - Frequent base image updates can **invalidate cache and slow down builds**, so it should be versioned and updated only when needed  
+- Use versioned tags (e.g., `20-alpine-v3`) for stability and rollback support  
