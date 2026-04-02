@@ -74,6 +74,31 @@
 
 ---
 
+## ⚡ Build Performance (Real Observation):
+
+- After optimization, repeated builds complete in **~0.9 seconds**  
+- Most Docker steps show **CACHED**, meaning:
+  - dependencies are not reinstalled  
+  - build step is skipped  
+  - only final image assembly runs  
+
+### ✅ Why builds are fast now:
+
+- Docker reuses layers when:
+  - `package.json` is unchanged → skips `npm ci`  
+  - source code is unchanged → skips build  
+- BuildKit cache avoids re-downloading npm packages  
+- Base image already contains required global dependencies  
+
+### ⚠️ When rebuild will be triggered:
+
+- Changes in `package.json` → reinstall dependencies  
+- Changes in dependencies → rebuild required  
+- Changes in base image → cache invalidation  
+- Changes in source code → rebuild only (not reinstall)  
+
+---
+
 ## ⚠️ Key decisions:
 
 - Moved **`@nitrostack/cli` to base image** since it is required in both build and runtime  
@@ -81,6 +106,23 @@
 - Focused on **time optimization via caching and layering**, not just image size  
 - Ensured **fresh dependency installation inside Docker** to avoid cross-platform issues  
 - Kept project-specific dependencies in main Dockerfile to maintain flexibility and proper caching  
+
+---
+
+## 🧠 Key Learnings:
+
+- Base image helps:
+  - ✅ reduce repeated setup  
+  - ✅ improve consistency  
+  - ❌ limited impact on total build time  
+
+- Major time improvements come from:
+  - 🚀 Docker layer caching  
+  - 🚀 `npm ci` optimization  
+  - 🚀 BuildKit cache  
+
+- Achieved near **O(1) build time** for cached builds (~1s)  
+- Build becomes slower only when dependencies change (expected behavior)  
 
 ---
 
