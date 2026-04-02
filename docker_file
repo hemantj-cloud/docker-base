@@ -2,7 +2,7 @@
 # This Dockerfile is designed to work with any NitroStack project
 
 # Stage 1: Build stage
-FROM hemantwekan/node-base:20-alpine-v3 AS builder
+FROM hemantwekan/node-base:20-alpine-v5 AS builder
 
 # Switch to root user for installing dependencies
 USER root
@@ -13,20 +13,24 @@ WORKDIR /app
 # CHANGED: NitroStack CLI is already available from base image
 # RUN npm install -g @nitrostack/cli  ❌ removed (handled in base)
 
-# Copy package files
+# CHANGED: copy only package files first (better caching)
 COPY package*.json ./
 
-# Install all dependencies (including devDependencies for build)
-# Using BuildKit cache to speed up installs
+# CHANGED: ensure clean install (prevents any leftover/cached platform issues like esbuild)
+RUN rm -rf node_modules
+
+# CHANGED: install dependencies BEFORE copying full code (cache optimization)
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --no-audit --no-fund --prefer-offline
 
-# Copy source code (this includes widgets if they exist)
+# CHANGED: copy source AFTER deps (prevents reinstall on code change)
 COPY . .
 
 # Install widget dependencies if package.json exists
+# CHANGED: avoid platform mismatch
 RUN --mount=type=cache,target=/root/.npm \
     if [ -f "src/widgets/package.json" ]; then \
+      rm -rf src/widgets/node_modules && \ 
       npm ci --prefix src/widgets --no-audit --no-fund --prefer-offline; \
     fi
 
@@ -34,7 +38,7 @@ RUN --mount=type=cache,target=/root/.npm \
 RUN npm run build
 
 # Stage 2: Production stage
-FROM hemantwekan/node-base:20-alpine-v3 AS production
+FROM hemantwekan/node-base:20-alpine-v5 AS production
 
 # Base image already includes:
 # - procps (for pgrep)
@@ -49,11 +53,13 @@ WORKDIR /app
 # Switch to root user for installing dependencies (fix for EACCES issue)
 USER root
 
-# Copy package files
+# CHANGED: copy only package files first (cache optimization)
 COPY package*.json ./
 
-# Install only production dependencies
-# Using modern flag + cache mount for speed
+# CHANGED: ensure clean prod install (extra safety)
+RUN rm -rf node_modules
+
+# CHANGED: install prod deps before copying rest
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --omit=dev --omit=optional --no-audit --no-fund --prefer-offline && \
     npm prune --omit=dev && \
@@ -64,11 +70,10 @@ RUN find node_modules -type f -name "*.md" -delete && \
     find node_modules -type f -name "*.ts" -delete && \
     find node_modules -type f -name "*.map" -delete
 
-# Copy built files from builder stage
+# CHANGED: copy only required build output (already optimized)
 COPY --from=builder /app/dist ./dist
 
 # Copy widget files if they exist (using a script to handle optional files)
-# First, copy everything from widgets directory, then we'll clean up if needed
 RUN --mount=from=builder,source=/app/src,target=/tmp/src \
     mkdir -p ./src/widgets && \
     if [ -d "/tmp/src/widgets" ]; then \
@@ -86,16 +91,10 @@ RUN --mount=from=builder,source=/app/src,target=/tmp/src \
 # Switch back to non-root user for security
 USER nodejs
 
-# We DO NOT recreate user/group or chown because base image already handles:
-# - nodejs user creation
-# - correct permissions
-# - default USER nodejs
-
 # Expose port (NitroStack uses port 3000 in production)
 EXPOSE 3000
 
 # Health check - simple process check since NitroStack uses STDIO in production
-# The server process should be running
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD pgrep -f "node.*dist/index.js" || exit 1
 

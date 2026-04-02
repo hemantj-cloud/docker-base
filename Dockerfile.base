@@ -3,23 +3,28 @@ FROM node:20-alpine
 # Set working directory
 WORKDIR /app
 
-# CHANGED: install procps (needed for pgrep in healthcheck)
-# CHANGED: combine with npm install to reduce layers
+# CHANGED: install procps + CLI in single layer (faster + cached)
 RUN apk add --no-cache procps && \
-    npm install -g @nitrostack/cli@1.0.10 --no-audit --no-fund && \
+    npm install -g @nitrostack/cli@1.0.10 --no-audit --no-fund --prefer-offline && \
     npm cache clean --force
 
-# CHANGED: create non-root user (kept same but optimized order)
+# CHANGED: create non-root user (no change, already optimal)
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
 # Set environment
+# CHANGED: reduces npm noise (slightly faster logs)
 ENV NODE_ENV=production \
     NPM_CONFIG_AUDIT=false \
-    NPM_CONFIG_FUND=false
+    NPM_CONFIG_FUND=false \
+    NPM_CONFIG_PREFER_OFFLINE=true \
+    NPM_CONFIG_LOGLEVEL=error
 
 # CHANGED: ensure global npm binaries are in PATH (safety)
 ENV PATH=$PATH:/usr/local/bin
+
+# CHANGED: verify CLI installation at build time (fails fast if broken)
+RUN nitrostack-cli --version
 
 # Default user
 USER nodejs
