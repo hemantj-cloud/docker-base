@@ -6,9 +6,13 @@
   - Combining layers (apk + npm install)
   - Cleaning npm cache
   - Disabling audit/fund checks  
+  - Ensuring global binaries are available via PATH  
 - Used this base image in the main **multi-stage Dockerfile** (builder + production stages)  
 - Kept **npm install and build steps in the main Dockerfile** to handle project-specific dependencies  
-- Optimized builds using **Docker cache (`--mount=type=cache`)** for faster npm installs  
+- Optimized builds using:
+  - **Docker cache (`COPY package*.json` first)**  
+  - **BuildKit cache (`--mount=type=cache`)** for faster npm installs  
+- Ensured **clean dependency installation inside Docker** (avoiding local `node_modules`)  
 - Ensured **only production dependencies** are included in the final image to reduce size  
 - Added cleanup steps to remove unnecessary files from `node_modules`  
 - Implemented **conditional widget handling** to avoid build failures if widgets are absent  
@@ -58,7 +62,11 @@
 
 - Reduced ~**100MB+ disk usage** compared to initial build (~25% improvement)  
 - Initial CLI integration increased size, but further optimizations reduced ~**46MB** from that spike  
-- Improved **build time** by installing `@nitrostack/cli` once in base image instead of every build  
+- Improved **build time** by:
+  - installing `@nitrostack/cli` once in base image instead of every build  
+  - optimizing Docker layer caching (`package.json` first)  
+  - using BuildKit cache for npm dependencies  
+- Eliminated **platform-specific issues (e.g., esbuild mismatch)** by ensuring clean installs inside Docker  
 - Achieved a **balanced tradeoff** between:
   - build performance ⚡  
   - image size 📦  
@@ -70,7 +78,9 @@
 
 - Moved **`@nitrostack/cli` to base image** since it is required in both build and runtime  
 - Optimized base image to reduce its impact on final image size  
-- Kept project-specific dependencies in main Dockerfile to maintain flexibility and proper caching   
+- Focused on **time optimization via caching and layering**, not just image size  
+- Ensured **fresh dependency installation inside Docker** to avoid cross-platform issues  
+- Kept project-specific dependencies in main Dockerfile to maintain flexibility and proper caching  
 
 ---
 
