@@ -122,7 +122,9 @@
   - 🚀 BuildKit cache  
 
 - Achieved near **O(1) build time** for cached builds (~1s)  
-- Build becomes slower only when dependencies change (expected behavior)  
+- Build becomes slower only when dependencies change (expected behavior)
+- <img width="1512" height="785" alt="Pasted Graphic 1" src="https://github.com/user-attachments/assets/125950b8-2250-4175-95d1-aa49045368b1" />
+
 
 ---
 
