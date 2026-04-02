@@ -14,21 +14,32 @@
 
 ## 📦 Size Improvements (Actual):
 
-- Previous image (`fresh-pizza:local`):
+### 🔹 Old Image (before optimizations)
+- `fresh-pizza:local`
   - **Disk Usage:** 418MB  
   - **Content Size:** 87.7MB  
 
-- New image (`hemantwekan/fresh-pizza:1.4.0`):
+---
+
+### 🔹 Using Custom Base Image (`hemantwekan/node-base:20-alpine`)
+- `hemantwekan/fresh-pizza:1.4.0`
   - **Disk Usage:** 313MB  
   - **Content Size:** 69.6MB  
 
 ---
 
+### 🔹 Using Official Node Alpine (`node:20-alpine`)
+- `hemantwekan/fresh-pizza:1.5.0`
+  - **Disk Usage:** 317MB  
+  - **Content Size:** 70.2MB  
+
+---
+
 ## 🚀 Impact:
 
-- Reduced ~**100MB+ disk usage** (~25% improvement)  
-- Reduced ~**18MB content size**  
-- Smaller image → faster pull, deploy, and startup time  
+- Reduced ~**100MB+ disk usage** compared to initial build (~25% improvement)  
+- Slight increase (~4MB) when switching from custom base → official node alpine  
+- Maintained overall optimized image size with cleaner and portable setup  
 
 ---
 
